@@ -8,6 +8,7 @@ target_link_libraries(hyperiond
 		effectengine
 		jsonserver
 		boblightserver
+		boost_system
 )
 
 if (ENABLE_DISPMANX)

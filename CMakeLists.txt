@@ -128,6 +128,13 @@ if(ENABLE_OSX)
 	set(CMAKE_EXE_LINKER_FLAGS "-framework CoreGraphics")
 endif()
 
+
+# Boost Lib for UDP
+find_package(Boost COMPONENTS system REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+set(CMAKE_EXE_LINKER_FLAGS "-lboost_system")
+
+
 configure_file(bin/install_hyperion.sh ${LIBRARY_OUTPUT_PATH} @ONLY)
 configure_file(config/hyperion.config.json ${LIBRARY_OUTPUT_PATH} @ONLY)
 configure_file(config/hyperion_x86.config.json ${LIBRARY_OUTPUT_PATH} @ONLY)
