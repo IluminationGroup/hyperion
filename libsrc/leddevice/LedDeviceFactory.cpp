@@ -35,6 +35,7 @@
 #include "LedDeviceHyperionUsbasp.h"
 #include "LedDevicePhilipsHue.h"
 #include "LedDeviceTpm2.h"
+#include "LedDeviceTpm2net.h"
 #include "LedDeviceAtmo.h"
 #include "LedDeviceAdalightApa102.h"
 
@@ -269,6 +270,13 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 		LedDeviceTpm2 * deviceTpm2 = new LedDeviceTpm2(output, rate);
 		deviceTpm2->open();
 		device = deviceTpm2;
+	}
+	else if (type == "tpm2net")
+	{
+		const std::string output = deviceConfig.get("output", "127.0.0.1").asString();
+		const uint16_t port     = deviceConfig.get("port", 65506).asInt();
+		LedDeviceTpm2net * deviceTpm2net = new LedDeviceTpm2net(output, port);
+		device = deviceTpm2net;
 	}
 	else if (type == "atmo")
 	{

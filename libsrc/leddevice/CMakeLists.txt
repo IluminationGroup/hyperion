@@ -38,6 +38,7 @@ SET(Leddevice_HEADERS
 		${CURRENT_SOURCE_DIR}/LedDeviceUdp.h
 		${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.h
 		${CURRENT_SOURCE_DIR}/LedDeviceTpm2.h
+		${CURRENT_SOURCE_DIR}/LedDeviceTpm2net.h
 		${CURRENT_SOURCE_DIR}/LedDeviceAtmo.h
 )
 
@@ -62,6 +63,7 @@ SET(Leddevice_SOURCES
 		${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.cpp
 		${CURRENT_SOURCE_DIR}/LedDevicePhilipsHue.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceTpm2.cpp
+		${CURRENT_SOURCE_DIR}/LedDeviceTpm2net.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceAtmo.cpp
 )
 
