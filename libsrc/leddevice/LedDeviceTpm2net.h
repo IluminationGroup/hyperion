@@ -34,7 +34,7 @@ public:
 private:
 		
 	/// The buffer containing the packed RGB values
-	std::vector<uint8_t> _ledBuffer;
+	QByteArray _ledBuffer;
 	
 	/// The host of the master brick
 	QStringList _output_ip;

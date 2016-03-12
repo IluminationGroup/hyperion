@@ -34,18 +34,17 @@ int LedDeviceTpm2net::write(const std::vector<ColorRgb> & ledValues)
 		_ledBuffer[3] = (3 * ledValues.size()) & 0xFF; // frame size low byte
 		_ledBuffer[4] = 1; // packets number
 		_ledBuffer[5] = 1; // Number of packets 
-		_ledBuffer.back() = 0x36; // block-end byte
+		_ledBuffer[(int)(7 + 3*ledValues.size()-1)] = 0x36; // block-end byte
 	}
 
 	// write data
 	memcpy(6 + _ledBuffer.data(), ledValues.data() /*Max 1,490 bytes*/, ledValues.size() * 3);
 	
-	QByteArray datagram((char*)(_ledBuffer.data()), (int)_ledBuffer.size() );
 
 	for ( int i = 0; i < _output_ip.size(); ++i) {
-		std::cout << (int)_ledBuffer.size() << " " << (int)_ledBuffer[7] << " " << (int)_ledBuffer[8] << " " << (int)_ledBuffer[9] << std::endl;
+		//std::cout << (int)_ledBuffer.size() << " " << (int)_ledBuffer[7] << " " << (int)_ledBuffer[8] << " " << (int)_ledBuffer[9] << std::endl;
 		_socket.connectToHost(QHostAddress(_output_ip[i]),_port);
-		_socket.write(datagram);
+		_socket.write(_ledBuffer);
 		_socket.close();
 	}
 
