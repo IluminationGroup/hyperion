@@ -1,4 +1,3 @@
-
 # Define the current source locations
 SET(CURRENT_HEADER_DIR ${CMAKE_SOURCE_DIR}/include/leddevice)
 SET(CURRENT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/libsrc/leddevice)
@@ -17,10 +16,11 @@ SET(Leddevice_QT_HEADERS
 		${CURRENT_SOURCE_DIR}/LedDeviceAdalight.h
 		${CURRENT_SOURCE_DIR}/LedDeviceAdalightApa102.h
 		${CURRENT_SOURCE_DIR}/LedDeviceAmbiLed.h
+    ${CURRENT_SOURCE_DIR}/LedDeviceAtmoOrb.h
 		${CURRENT_SOURCE_DIR}/LedDevicePhilipsHue.h
 		${CURRENT_SOURCE_DIR}/LedHIDDevice.h
 		${CURRENT_SOURCE_DIR}/LedDeviceRawHID.h
-		${CURRENT_SOURCE_DIR}/LedDeviceTest.h
+		${CURRENT_SOURCE_DIR}/LedDeviceFile.h
 		${CURRENT_SOURCE_DIR}/LedDeviceFadeCandy.h
 )
 
@@ -33,7 +33,7 @@ SET(Leddevice_HEADERS
 		${CURRENT_SOURCE_DIR}/LedDevicePaintpack.h
 		${CURRENT_SOURCE_DIR}/LedDevicePiBlaster.h
 		${CURRENT_SOURCE_DIR}/LedDeviceSedu.h
-		${CURRENT_SOURCE_DIR}/LedDeviceTest.h
+		${CURRENT_SOURCE_DIR}/LedDeviceFile.h
 		${CURRENT_SOURCE_DIR}/LedDeviceFadeCandy.h
 		${CURRENT_SOURCE_DIR}/LedDeviceUdp.h
 		${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.h
@@ -51,13 +51,14 @@ SET(Leddevice_SOURCES
 		${CURRENT_SOURCE_DIR}/LedDeviceAdalight.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceAdalightApa102.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceAmbiLed.cpp
+    ${CURRENT_SOURCE_DIR}/LedDeviceAtmoOrb.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceRawHID.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceLightpack.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceMultiLightpack.cpp
 		${CURRENT_SOURCE_DIR}/LedDevicePaintpack.cpp
 		${CURRENT_SOURCE_DIR}/LedDevicePiBlaster.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceSedu.cpp
-		${CURRENT_SOURCE_DIR}/LedDeviceTest.cpp
+		${CURRENT_SOURCE_DIR}/LedDeviceFile.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceFadeCandy.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceUdp.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.cpp
@@ -75,6 +76,7 @@ if(ENABLE_SPIDEV)
 			${CURRENT_SOURCE_DIR}/LedDeviceLpd8806.h
 			${CURRENT_SOURCE_DIR}/LedDeviceP9813.h
 			${CURRENT_SOURCE_DIR}/LedDeviceWs2801.h
+			${CURRENT_SOURCE_DIR}/LedDeviceWs2812SPI.h
 			${CURRENT_SOURCE_DIR}/LedDeviceAPA102.h
 	)
 	SET(Leddevice_SOURCES
@@ -84,6 +86,7 @@ if(ENABLE_SPIDEV)
 			${CURRENT_SOURCE_DIR}/LedDeviceLpd8806.cpp
 			${CURRENT_SOURCE_DIR}/LedDeviceP9813.cpp
 			${CURRENT_SOURCE_DIR}/LedDeviceWs2801.cpp
+			${CURRENT_SOURCE_DIR}/LedDeviceWs2812SPI.cpp
 			${CURRENT_SOURCE_DIR}/LedDeviceAPA102.cpp
 	)
 endif(ENABLE_SPIDEV)
@@ -161,4 +164,3 @@ if(APPLE)
 else()
 	target_link_libraries(leddevice hidapi-libusb)
 endif()
-

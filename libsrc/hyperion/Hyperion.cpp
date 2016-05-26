@@ -15,12 +15,17 @@
 // hyperion include
 #include <hyperion/Hyperion.h>
 #include <hyperion/ImageProcessorFactory.h>
+#include <hyperion/ColorTransform.h>
+#include <hyperion/ColorCorrection.h>
+#include <hyperion/ColorAdjustment.h>
 
 // Leddevice includes
 #include <leddevice/LedDevice.h>
 #include <leddevice/LedDeviceFactory.h>
 
 #include "MultiColorTransform.h"
+#include "MultiColorCorrection.h"
+#include "MultiColorAdjustment.h"
 #include "LinearColorSmoothing.h"
 
 // effect engine includes
@@ -62,7 +67,7 @@ ColorOrder Hyperion::createColorOrder(const Json::Value &deviceConfig)
 	}
 	else
 	{
-		std::cout << "Unknown color order defined (" << order << "). Using RGB." << std::endl;
+		std::cout << "HYPERION ERROR: Unknown color order defined (" << order << "). Using RGB." << std::endl;
 	}
 
 	return ORDER_RGB;
@@ -77,6 +82,7 @@ ColorTransform * Hyperion::createColorTransform(const Json::Value & transformCon
 	RgbChannelTransform * blueTransform  = createRgbChannelTransform(transformConfig["blue"]);
 
 	HsvTransform * hsvTransform = createHsvTransform(transformConfig["hsv"]);
+	HslTransform * hslTransform = createHslTransform(transformConfig["hsl"]);
 
 	ColorTransform * transform = new ColorTransform();
 	transform->_id = id;
@@ -84,15 +90,59 @@ ColorTransform * Hyperion::createColorTransform(const Json::Value & transformCon
 	transform->_rgbGreenTransform = *greenTransform;
 	transform->_rgbBlueTransform  = *blueTransform;
 	transform->_hsvTransform      = *hsvTransform;
+	transform->_hslTransform      = *hslTransform;
+
 
 	// Cleanup the allocated individual transforms
 	delete redTransform;
 	delete greenTransform;
 	delete blueTransform;
 	delete hsvTransform;
+	delete hslTransform;
 
 	return transform;
 }
+
+
+ColorCorrection * Hyperion::createColorCorrection(const Json::Value & correctionConfig)
+{
+	const std::string id = correctionConfig.get("id", "default").asString();
+
+	RgbChannelCorrection * rgbCorrection   = createRgbChannelCorrection(correctionConfig["correctionValues"]);
+
+	ColorCorrection * correction = new ColorCorrection();
+	correction->_id = id;
+	correction->_rgbCorrection   = *rgbCorrection;
+
+	// Cleanup the allocated individual transforms
+	delete rgbCorrection;
+
+	return correction;
+}
+
+
+ColorAdjustment * Hyperion::createColorAdjustment(const Json::Value & adjustmentConfig)
+{
+	const std::string id = adjustmentConfig.get("id", "default").asString();
+
+	RgbChannelAdjustment * redAdjustment   = createRgbChannelAdjustment(adjustmentConfig["pureRed"],RED);
+	RgbChannelAdjustment * greenAdjustment = createRgbChannelAdjustment(adjustmentConfig["pureGreen"],GREEN);
+	RgbChannelAdjustment * blueAdjustment  = createRgbChannelAdjustment(adjustmentConfig["pureBlue"],BLUE);
+
+	ColorAdjustment * adjustment = new ColorAdjustment();
+	adjustment->_id = id;
+	adjustment->_rgbRedAdjustment   = *redAdjustment;
+	adjustment->_rgbGreenAdjustment = *greenAdjustment;
+	adjustment->_rgbBlueAdjustment  = *blueAdjustment;
+
+	// Cleanup the allocated individual adjustments
+	delete redAdjustment;
+	delete greenAdjustment;
+	delete blueAdjustment;
+
+	return adjustment;
+}
+
 
 MultiColorTransform * Hyperion::createLedColorsTransform(const unsigned ledCnt, const Json::Value & colorConfig)
 {
@@ -128,17 +178,17 @@ MultiColorTransform * Hyperion::createLedColorsTransform(const unsigned ledCnt, 
 			{
 				// Special case for indices '*' => all leds
 				transform->setTransformForLed(colorTransform->_id, 0, ledCnt-1);
-				std::cout << "ColorTransform '" << colorTransform->_id << "' => [0; "<< ledCnt-1 << "]" << std::endl;
+				std::cout << "HYPERION INFO: ColorTransform '" << colorTransform->_id << "' => [0; "<< ledCnt-1 << "]" << std::endl;
 				continue;
 			}
 
 			if (!overallExp.exactMatch(ledIndicesStr))
 			{
-				std::cerr << "Given led indices " << i << " not correct format: " << ledIndicesStr.toStdString() << std::endl;
+				std::cerr << "HYPERION ERROR: Given led indices " << i << " not correct format: " << ledIndicesStr.toStdString() << std::endl;
 				continue;
 			}
 
-			std::cout << "ColorTransform '" << colorTransform->_id << "' => [";
+			std::cout << "HYPERION INFO: ColorTransform '" << colorTransform->_id << "' => [";
 
 			const QStringList ledIndexList = ledIndicesStr.split(",");
 			for (int i=0; i<ledIndexList.size(); ++i) {
@@ -168,12 +218,243 @@ MultiColorTransform * Hyperion::createLedColorsTransform(const unsigned ledCnt, 
 	return transform;
 }
 
+MultiColorCorrection * Hyperion::createLedColorsCorrection(const unsigned ledCnt, const Json::Value & colorConfig)
+{
+	// Create the result, the corrections are added to this
+	MultiColorCorrection * correction = new MultiColorCorrection(ledCnt);
+
+	const Json::Value correctionConfig = colorConfig.get("correction", Json::nullValue);
+	if (correctionConfig.isNull())
+	{
+		// Old style color correction config (just one for all leds)
+		ColorCorrection * colorCorrection = createColorCorrection(colorConfig);
+		correction->addCorrection(colorCorrection);
+		correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+	}
+	else if (!correctionConfig.isArray())
+	{
+		ColorCorrection * colorCorrection = createColorCorrection(correctionConfig);
+		correction->addCorrection(colorCorrection);
+		correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+	}
+	else
+	{
+		const QRegExp overallExp("([0-9]+(\\-[0-9]+)?)(,[ ]*([0-9]+(\\-[0-9]+)?))*");
+
+		for (Json::UInt i = 0; i < correctionConfig.size(); ++i)
+		{
+			const Json::Value & config = correctionConfig[i];
+			ColorCorrection * colorCorrection = createColorCorrection(config);
+			correction->addCorrection(colorCorrection);
+
+			const QString ledIndicesStr = QString(config.get("leds", "").asCString()).trimmed();
+			if (ledIndicesStr.compare("*") == 0)
+			{
+				// Special case for indices '*' => all leds
+				correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+				std::cout << "HYPERION INFO: ColorCorrection '" << colorCorrection->_id << "' => [0; "<< ledCnt-1 << "]" << std::endl;
+				continue;
+			}
+
+			if (!overallExp.exactMatch(ledIndicesStr))
+			{
+				std::cerr << "HYPERION ERROR: Given led indices " << i << " not correct format: " << ledIndicesStr.toStdString() << std::endl;
+				continue;
+			}
+
+			std::cout << "HYPERION INFO: ColorCorrection '" << colorCorrection->_id << "' => [";
+
+			const QStringList ledIndexList = ledIndicesStr.split(",");
+			for (int i=0; i<ledIndexList.size(); ++i) {
+				if (i > 0)
+				{
+					std::cout << ", ";
+				}
+				if (ledIndexList[i].contains("-"))
+				{
+					QStringList ledIndices = ledIndexList[i].split("-");
+					int startInd = ledIndices[0].toInt();
+					int endInd   = ledIndices[1].toInt();
+
+					correction->setCorrectionForLed(colorCorrection->_id, startInd, endInd);
+					std::cout << startInd << "-" << endInd;
+				}
+				else
+				{
+					int index = ledIndexList[i].toInt();
+					correction->setCorrectionForLed(colorCorrection->_id, index, index);
+					std::cout << index;
+				}
+			}
+			std::cout << "]" << std::endl;
+		}
+	}
+	return correction;
+}
+
+MultiColorCorrection * Hyperion::createLedColorsTemperature(const unsigned ledCnt, const Json::Value & colorConfig)
+{
+	// Create the result, the corrections are added to this
+	MultiColorCorrection * correction = new MultiColorCorrection(ledCnt);
+
+	const Json::Value correctionConfig = colorConfig.get("temperature", Json::nullValue);
+	if (correctionConfig.isNull())
+	{
+		// Old style color correction config (just one for all leds)
+		ColorCorrection * colorCorrection = createColorCorrection(colorConfig);
+		correction->addCorrection(colorCorrection);
+		correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+	}
+	else if (!correctionConfig.isArray())
+	{
+		ColorCorrection * colorCorrection = createColorCorrection(correctionConfig);
+		correction->addCorrection(colorCorrection);
+		correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+	}
+	else
+	{
+		const QRegExp overallExp("([0-9]+(\\-[0-9]+)?)(,[ ]*([0-9]+(\\-[0-9]+)?))*");
+
+		for (Json::UInt i = 0; i < correctionConfig.size(); ++i)
+		{
+			const Json::Value & config = correctionConfig[i];
+			ColorCorrection * colorCorrection = createColorCorrection(config);
+			correction->addCorrection(colorCorrection);
+
+			const QString ledIndicesStr = QString(config.get("leds", "").asCString()).trimmed();
+			if (ledIndicesStr.compare("*") == 0)
+			{
+				// Special case for indices '*' => all leds
+				correction->setCorrectionForLed(colorCorrection->_id, 0, ledCnt-1);
+				std::cout << "HYPERION INFO: ColorCorrection '" << colorCorrection->_id << "' => [0; "<< ledCnt-1 << "]" << std::endl;
+				continue;
+			}
+
+			if (!overallExp.exactMatch(ledIndicesStr))
+			{
+				std::cerr << "HYPERION ERROR: Given led indices " << i << " not correct format: " << ledIndicesStr.toStdString() << std::endl;
+				continue;
+			}
+
+			std::cout << "HYPERION INFO: ColorCorrection '" << colorCorrection->_id << "' => [";
+
+			const QStringList ledIndexList = ledIndicesStr.split(",");
+			for (int i=0; i<ledIndexList.size(); ++i) {
+				if (i > 0)
+				{
+					std::cout << ", ";
+				}
+				if (ledIndexList[i].contains("-"))
+				{
+					QStringList ledIndices = ledIndexList[i].split("-");
+					int startInd = ledIndices[0].toInt();
+					int endInd   = ledIndices[1].toInt();
+
+					correction->setCorrectionForLed(colorCorrection->_id, startInd, endInd);
+					std::cout << startInd << "-" << endInd;
+				}
+				else
+				{
+					int index = ledIndexList[i].toInt();
+					correction->setCorrectionForLed(colorCorrection->_id, index, index);
+					std::cout << index;
+				}
+			}
+			std::cout << "]" << std::endl;
+		}
+	}
+	return correction;
+}
+
+MultiColorAdjustment * Hyperion::createLedColorsAdjustment(const unsigned ledCnt, const Json::Value & colorConfig)
+{
+	// Create the result, the transforms are added to this
+	MultiColorAdjustment * adjustment = new MultiColorAdjustment(ledCnt);
+
+	const Json::Value adjustmentConfig = colorConfig.get("channelAdjustment", Json::nullValue);
+	if (adjustmentConfig.isNull())
+	{
+		// Old style color transformation config (just one for all leds)
+		ColorAdjustment * colorAdjustment = createColorAdjustment(colorConfig);
+		adjustment->addAdjustment(colorAdjustment);
+		adjustment->setAdjustmentForLed(colorAdjustment->_id, 0, ledCnt-1);
+	}
+	else if (!adjustmentConfig.isArray())
+	{
+		ColorAdjustment * colorAdjustment = createColorAdjustment(adjustmentConfig);
+		adjustment->addAdjustment(colorAdjustment);
+		adjustment->setAdjustmentForLed(colorAdjustment->_id, 0, ledCnt-1);
+	}
+	else
+	{
+		const QRegExp overallExp("([0-9]+(\\-[0-9]+)?)(,[ ]*([0-9]+(\\-[0-9]+)?))*");
+
+		for (Json::UInt i = 0; i < adjustmentConfig.size(); ++i)
+		{
+			const Json::Value & config = adjustmentConfig[i];
+			ColorAdjustment * colorAdjustment = createColorAdjustment(config);
+			adjustment->addAdjustment(colorAdjustment);
+
+			const QString ledIndicesStr = QString(config.get("leds", "").asCString()).trimmed();
+			if (ledIndicesStr.compare("*") == 0)
+			{
+				// Special case for indices '*' => all leds
+				adjustment->setAdjustmentForLed(colorAdjustment->_id, 0, ledCnt-1);
+				std::cout << "HYPERION INFO: ColorAdjustment '" << colorAdjustment->_id << "' => [0; "<< ledCnt-1 << "]" << std::endl;
+				continue;
+			}
+
+			if (!overallExp.exactMatch(ledIndicesStr))
+			{
+				std::cerr << "HYPERION ERROR: Given led indices " << i << " not correct format: " << ledIndicesStr.toStdString() << std::endl;
+				continue;
+			}
+
+			std::cout << "HYPERION INFO: ColorAdjustment '" << colorAdjustment->_id << "' => [";
+
+			const QStringList ledIndexList = ledIndicesStr.split(",");
+			for (int i=0; i<ledIndexList.size(); ++i) {
+				if (i > 0)
+				{
+					std::cout << ", ";
+				}
+				if (ledIndexList[i].contains("-"))
+				{
+					QStringList ledIndices = ledIndexList[i].split("-");
+					int startInd = ledIndices[0].toInt();
+					int endInd   = ledIndices[1].toInt();
+
+					adjustment->setAdjustmentForLed(colorAdjustment->_id, startInd, endInd);
+					std::cout << startInd << "-" << endInd;
+				}
+				else
+				{
+					int index = ledIndexList[i].toInt();
+					adjustment->setAdjustmentForLed(colorAdjustment->_id, index, index);
+					std::cout << index;
+				}
+			}
+			std::cout << "]" << std::endl;
+		}
+	}
+	return adjustment;
+}
+
 HsvTransform * Hyperion::createHsvTransform(const Json::Value & hsvConfig)
 {
 	const double saturationGain = hsvConfig.get("saturationGain", 1.0).asDouble();
 	const double valueGain      = hsvConfig.get("valueGain",      1.0).asDouble();
 
 	return new HsvTransform(saturationGain, valueGain);
+}
+
+HslTransform * Hyperion::createHslTransform(const Json::Value & hslConfig)
+{
+	const double saturationGain = hslConfig.get("saturationGain", 1.0).asDouble();
+	const double luminanceGain  = hslConfig.get("luminanceGain",  1.0).asDouble();
+	const double luminanceMinimum = hslConfig.get("luminanceMinimum", 0.0).asDouble();
+
+	return new HslTransform(saturationGain, luminanceGain, luminanceMinimum);
 }
 
 RgbChannelTransform* Hyperion::createRgbChannelTransform(const Json::Value& colorConfig)
@@ -185,6 +466,42 @@ RgbChannelTransform* Hyperion::createRgbChannelTransform(const Json::Value& colo
 
 	RgbChannelTransform* transform = new RgbChannelTransform(threshold, gamma, blacklevel, whitelevel);
 	return transform;
+}
+
+RgbChannelCorrection* Hyperion::createRgbChannelCorrection(const Json::Value& colorConfig)
+{
+	const int varR = colorConfig.get("red", 255).asInt();
+	const int varG = colorConfig.get("green", 255).asInt();
+	const int varB = colorConfig.get("blue", 255).asInt();
+
+	RgbChannelCorrection* correction = new RgbChannelCorrection(varR, varG, varB);
+	return correction;
+}
+
+RgbChannelAdjustment* Hyperion::createRgbChannelAdjustment(const Json::Value& colorConfig, const RgbChannel color)
+{
+	int varR=0, varG=0, varB=0;
+	if (color == RED) 
+	{
+		varR = colorConfig.get("redChannel", 255).asInt();
+		varG = colorConfig.get("greenChannel", 0).asInt();
+		varB = colorConfig.get("blueChannel", 0).asInt();
+	}
+	else if (color == GREEN)
+	{
+		varR = colorConfig.get("redChannel", 0).asInt();
+		varG = colorConfig.get("greenChannel", 255).asInt();
+		varB = colorConfig.get("blueChannel", 0).asInt();
+	}		
+	else if (color == BLUE)
+	{
+		varR = colorConfig.get("redChannel", 0).asInt();
+		varG = colorConfig.get("greenChannel", 0).asInt();
+		varB = colorConfig.get("blueChannel", 255).asInt();
+	}
+
+	RgbChannelAdjustment* adjustment = new RgbChannelAdjustment(varR, varG, varB);
+	return adjustment;
 }
 
 LedString Hyperion::createLedString(const Json::Value& ledsConfig, const ColorOrder deviceOrder)
@@ -234,23 +551,23 @@ LedDevice * Hyperion::createColorSmoothing(const Json::Value & smoothingConfig, 
 
 	if (type == "none")
 	{
-		std::cout << "Not creating any smoothing" << std::endl;
+		std::cout << "HYPERION INFO: Not creating any smoothing" << std::endl;
 		return ledDevice;
 	}
 	else if (type == "linear")
 	{
 		if (!smoothingConfig.isMember("time_ms"))
 		{
-			std::cout << "Unable to create smoothing of type linear because of missing parameter 'time_ms'" << std::endl;
+			std::cout << "HYPERION ERROR: Unable to create smoothing of type linear because of missing parameter 'time_ms'" << std::endl;
 		}
 		else if (!smoothingConfig.isMember("updateFrequency"))
 		{
-			std::cout << "Unable to create smoothing of type linear because of missing parameter 'updateFrequency'" << std::endl;
+			std::cout << "HYPERION ERROR: Unable to create smoothing of type linear because of missing parameter 'updateFrequency'" << std::endl;
 		}
 		else
 		{
 			const unsigned updateDelay = smoothingConfig.get("updateDelay", Json::Value(0u)).asUInt();
-			std::cout << "Creating linear smoothing" << std::endl;
+			std::cout << "INFO: Creating linear smoothing" << std::endl;
 			return new LinearColorSmoothing(
 					ledDevice,
 					smoothingConfig["updateFrequency"].asDouble(),
@@ -260,12 +577,11 @@ LedDevice * Hyperion::createColorSmoothing(const Json::Value & smoothingConfig, 
 	}
 	else
 	{
-		std::cout << "Unable to create smoothing of type " << type << std::endl;
+		std::cout << "HYPERION ERROR: Unable to create smoothing of type " << type << std::endl;
 	}
 
 	return ledDevice;
 }
-
 
 MessageForwarder * Hyperion::createMessageForwarder(const Json::Value & forwarderConfig)
 {
@@ -276,7 +592,7 @@ MessageForwarder * Hyperion::createMessageForwarder(const Json::Value & forwarde
 			{
 				for (const Json::Value& addr : forwarderConfig["json"])
 				{
-					std::cout << "Json forward to " << addr.asString() << std::endl;
+					std::cout << "HYPERION INFO: Json forward to " << addr.asString() << std::endl;
 					forwarder->addJsonSlave(addr.asString());
 				}
 			}
@@ -285,7 +601,7 @@ MessageForwarder * Hyperion::createMessageForwarder(const Json::Value & forwarde
 			{
 				for (const Json::Value& addr : forwarderConfig["proto"])
 				{
-					std::cout << "Proto forward to " << addr.asString() << std::endl;
+					std::cout << "HYPERION INFO: Proto forward to " << addr.asString() << std::endl;
 					forwarder->addProtoSlave(addr.asString());
 				}
 			}
@@ -303,14 +619,29 @@ Hyperion::Hyperion(const Json::Value &jsonConfig) :
 	_ledString(createLedString(jsonConfig["leds"], createColorOrder(jsonConfig["device"]))),
 	_muxer(_ledString.leds().size()),
 	_raw2ledTransform(createLedColorsTransform(_ledString.leds().size(), jsonConfig["color"])),
+	_raw2ledCorrection(createLedColorsCorrection(_ledString.leds().size(), jsonConfig["color"])),
+	_raw2ledTemperature(createLedColorsTemperature(_ledString.leds().size(), jsonConfig["color"])),
+	_raw2ledAdjustment(createLedColorsAdjustment(_ledString.leds().size(), jsonConfig["color"])),
 	_device(LedDeviceFactory::construct(jsonConfig["device"])),
 	_effectEngine(nullptr),
 	_messageForwarder(createMessageForwarder(jsonConfig["forwarder"])),
 	_timer()
 {
+	if (!_raw2ledAdjustment->verifyAdjustments())
+	{
+		throw std::runtime_error("HYPERION ERROR: Color adjustment incorrectly set");
+	}
+	if (!_raw2ledCorrection->verifyCorrections())
+	{
+		throw std::runtime_error("HYPERION ERROR: Color correction incorrectly set");
+	}
+	if (!_raw2ledTemperature->verifyCorrections())
+	{
+		throw std::runtime_error("HYPERION ERROR: Color temperature incorrectly set");
+	}
 	if (!_raw2ledTransform->verifyTransforms())
 	{
-		throw std::runtime_error("Color transformation incorrectly set");
+		throw std::runtime_error("HYPERION ERROR: Color transformation incorrectly set");
 	}
 	// initialize the image processor factory
 	ImageProcessorFactory::getInstance().init(
@@ -347,6 +678,15 @@ Hyperion::~Hyperion()
 
 	// delete the color transform
 	delete _raw2ledTransform;
+	
+	// delete the color correction
+	delete _raw2ledCorrection;
+
+	// delete the color temperature correction
+	delete _raw2ledTemperature;
+	
+	// delete the color adjustment
+	delete _raw2ledAdjustment;
 
 	// delete the message forwarder
 	delete _messageForwarder;
@@ -395,12 +735,57 @@ const std::vector<std::string> & Hyperion::getTransformIds() const
 	return _raw2ledTransform->getTransformIds();
 }
 
+const std::vector<std::string> & Hyperion::getCorrectionIds() const
+{
+	return _raw2ledCorrection->getCorrectionIds();
+}
+
+const std::vector<std::string> & Hyperion::getTemperatureIds() const
+{
+	return _raw2ledTemperature->getCorrectionIds();
+}
+
+const std::vector<std::string> & Hyperion::getAdjustmentIds() const
+{
+	return _raw2ledAdjustment->getAdjustmentIds();
+}
+
 ColorTransform * Hyperion::getTransform(const std::string& id)
 {
 	return _raw2ledTransform->getTransform(id);
 }
 
+ColorCorrection * Hyperion::getCorrection(const std::string& id)
+{
+	return _raw2ledCorrection->getCorrection(id);
+}
+
+ColorCorrection * Hyperion::getTemperature(const std::string& id)
+{
+	return _raw2ledTemperature->getCorrection(id);
+}
+
+ColorAdjustment * Hyperion::getAdjustment(const std::string& id)
+{
+	return _raw2ledAdjustment->getAdjustment(id);
+}
+
 void Hyperion::transformsUpdated()
+{
+	update();
+}
+
+void Hyperion::correctionsUpdated()
+{
+	update();
+}
+
+void Hyperion::temperaturesUpdated()
+{
+	update();
+}
+
+void Hyperion::adjustmentsUpdated()
 {
 	update();
 }
@@ -449,6 +834,11 @@ const std::list<EffectDefinition> & Hyperion::getEffects() const
 	return _effectEngine->getEffects();
 }
 
+const std::list<ActiveEffectDefinition> & Hyperion::getActiveEffects()
+{
+	return _effectEngine->getActiveEffects();
+}
+
 int Hyperion::setEffect(const std::string &effectName, int priority, int timeout)
 {
 	return _effectEngine->runEffect(effectName, priority, timeout);
@@ -468,8 +858,12 @@ void Hyperion::update()
 	int priority = _muxer.getCurrentPriority();
 	const PriorityMuxer::InputInfo & priorityInfo  = _muxer.getInputInfo(priority);
 
-	// Apply the transform to each led and color-channel
-	std::vector<ColorRgb> ledColors = _raw2ledTransform->applyTransform(priorityInfo.ledColors);
+	// Apply the correction and the transform to each led and color-channel
+	// Avoid applying correction, the same task is performed by adjustment
+	// std::vector<ColorRgb> correctedColors = _raw2ledCorrection->applyCorrection(priorityInfo.ledColors);
+	std::vector<ColorRgb> transformColors =_raw2ledTransform->applyTransform(priorityInfo.ledColors);
+	std::vector<ColorRgb> adjustedColors = _raw2ledAdjustment->applyAdjustment(transformColors);
+	std::vector<ColorRgb> ledColors = _raw2ledTemperature->applyCorrection(adjustedColors);
 	const std::vector<Led>& leds = _ledString.leds();
 	int i = 0;
 	for (ColorRgb& color : ledColors)
@@ -492,18 +886,14 @@ void Hyperion::update()
 			break;
 		case ORDER_GBR:
 		{
-			uint8_t temp = color.red;
-			color.red = color.green;
-			color.green = color.blue;
-			color.blue = temp;
+			std::swap(color.red, color.green);
+			std::swap(color.green, color.blue);
 			break;
 		}
 		case ORDER_BRG:
 		{
-			uint8_t temp = color.red;
-			color.red = color.blue;
-			color.blue = color.green;
-			color.green = temp;
+			std::swap(color.red, color.blue);
+			std::swap(color.green, color.blue);
 			break;
 		}
 		}

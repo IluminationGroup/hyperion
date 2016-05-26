@@ -9,6 +9,8 @@
 #include <protoserver/ProtoConnectionWrapper.h>
 #include "DispmanxWrapper.h"
 
+#include "HyperionConfig.h"
+
 using namespace vlofgren;
 
 // save the image as screenshot
@@ -21,6 +23,11 @@ void saveScreenshot(const char * filename, const Image<ColorRgb> & image)
 
 int main(int argc, char ** argv)
 {
+	std::cout
+		<< "hyperion-dispmanx:" << std::endl
+		<< "\tversion   : " << HYPERION_VERSION_ID << std::endl
+		<< "\tbuild time: " << __DATE__ << " " << __TIME__ << std::endl;
+
 	QCoreApplication app(argc, argv);
 
 	try
@@ -39,6 +46,14 @@ int main(int argc, char ** argv)
 		SwitchParameter<>      & argSkipReply  = parameters.add<SwitchParameter<>>     (0x0, "skip-reply",  "Do not receive and check reply messages from Hyperion");
 		SwitchParameter<>      & argHelp       = parameters.add<SwitchParameter<>>     ('h', "help",        "Show this help message and exit");
 
+		IntParameter           & argCropLeft   = parameters.add<IntParameter>          (0x0, "crop-left",       "pixels to remove on left after grabbing");
+		IntParameter           & argCropRight  = parameters.add<IntParameter>          (0x0, "crop-right",       "pixels to remove on right after grabbing");
+		IntParameter           & argCropTop    = parameters.add<IntParameter>          (0x0, "crop-top",       "pixels to remove on top after grabbing");
+		IntParameter           & argCropBottom = parameters.add<IntParameter>          (0x0, "crop-bottom",       "pixels to remove on bottom after grabbing");
+
+		SwitchParameter<>      & arg3DSBS           = parameters.add<SwitchParameter<>>     (0x0, "3DSBS",            "Interpret the incoming video stream as 3D side-by-side");
+		SwitchParameter<>      & arg3DTAB           = parameters.add<SwitchParameter<>>     (0x0, "3DTAB",            "Interpret the incoming video stream as 3D top-and-bottom");
+
 		// set defaults
 		argFps.setDefault(10);
 		argWidth.setDefault(64);
@@ -46,8 +61,24 @@ int main(int argc, char ** argv)
 		argAddress.setDefault("127.0.0.1:19445");
 		argPriority.setDefault(800);
 
+		argCropLeft.setDefault(0);
+		argCropRight.setDefault(0);
+		argCropTop.setDefault(0);
+		argCropBottom.setDefault(0);
+
 		// parse all options
 		optionParser.parse(argc, const_cast<const char **>(argv));
+
+		VideoMode videoMode = VIDEO_2D;
+
+		if (arg3DSBS.isSet())
+		{
+			videoMode = VIDEO_3DSBS;
+		}
+		else if (arg3DTAB.isSet())
+		{
+			videoMode = VIDEO_3DTAB;
+		}
 
 		// check if we need to display the usage. exit if we do.
 		if (argHelp.isSet())
@@ -58,7 +89,13 @@ int main(int argc, char ** argv)
 
 		// Create the dispmanx grabbing stuff
 		int grabInterval = 1000 / argFps.getValue();
-		DispmanxWrapper dispmanxWrapper(argWidth.getValue(),argHeight.getValue(),grabInterval);
+		DispmanxWrapper dispmanxWrapper(argWidth.getValue(),argHeight.getValue(),
+			videoMode,
+			std::max(0, argCropLeft.getValue()),
+			std::max(0, argCropRight.getValue()),
+			std::max(0, argCropTop.getValue()),
+			std::max(0, argCropBottom.getValue()),
+			grabInterval);
 
 		if (argScreenshot.isSet())
 		{

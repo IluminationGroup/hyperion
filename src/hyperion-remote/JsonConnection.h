@@ -14,6 +14,8 @@
 
 // hyperion-remote includes
 #include "ColorTransformValues.h"
+#include "ColorCorrectionValues.h"
+#include "ColorAdjustmentValues.h"
 
 ///
 /// Connection class to setup an connection to the hyperion server and execute commands
@@ -89,6 +91,9 @@ public:
 	/// @param transformId The identifier of the transform to set
 	/// @param saturation The HSV saturation gain
 	/// @param value The HSV value gain
+	/// @param saturationL The HSL saturation gain
+	/// @param luminance The HSL luminance gain
+	/// @param luminanceMin The HSL luminance minimum
 	/// @param threshold The threshold
 	/// @param gamma The gamma value
 	/// @param blacklevel The blacklevel
@@ -98,10 +103,50 @@ public:
 			std::string * transformId,
 			double * saturation,
 			double * value,
+			double * saturationL,
+			double * luminance,
+			double * luminanceMin,
 			ColorTransformValues * threshold,
 			ColorTransformValues * gamma,
 			ColorTransformValues * blacklevel,
 			ColorTransformValues * whitelevel);
+	
+	///
+	/// Set the color correction of the leds
+	///
+	/// @note Note that providing a NULL will leave the settings on the server unchanged
+	///
+	/// @param correctionId The identifier of the correction to set
+	/// @param correction The correction values
+	void setCorrection(
+			std::string * correctionId,
+			ColorCorrectionValues * correction);
+
+	///
+	/// Set the color temperature of the leds
+	///
+	/// @note Note that providing a NULL will leave the settings on the server unchanged
+	///
+	/// @param temperatureId The identifier of the correction to set
+	/// @param temperature The temperature correction values
+	void setTemperature(
+			std::string * temperatureId,
+			ColorCorrectionValues * temperature);
+
+	///
+	/// Set the color adjustment of the leds
+	///
+	/// @note Note that providing a NULL will leave the settings on the server unchanged
+	///
+	/// @param adjustmentId The identifier of the correction to set
+	/// @param redAdjustment The red channel adjustment values
+	/// @param greenAdjustment The green channel adjustment values
+	/// @param blueAdjustment The blue channel adjustment values
+	void setAdjustment(
+			std::string * adjustmentId,
+			ColorAdjustmentValues * redAdjustment,
+			ColorAdjustmentValues * greenAdjustment,
+			ColorAdjustmentValues * blueAdjustment);
 
 private:
 	///

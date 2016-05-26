@@ -14,6 +14,7 @@
 	#include "LedDeviceLpd8806.h"
 	#include "LedDeviceP9813.h"
 	#include "LedDeviceWs2801.h"
+	#include "LedDeviceWs2812SPI.h"
 	#include "LedDeviceAPA102.h"
 #endif
 
@@ -29,7 +30,7 @@
 #include "LedDevicePaintpack.h"
 #include "LedDevicePiBlaster.h"
 #include "LedDeviceSedu.h"
-#include "LedDeviceTest.h"
+#include "LedDeviceFile.h"
 #include "LedDeviceFadeCandy.h"
 #include "LedDeviceUdp.h"
 #include "LedDeviceHyperionUsbasp.h"
@@ -38,6 +39,7 @@
 #include "LedDeviceTpm2net.h"
 #include "LedDeviceAtmo.h"
 #include "LedDeviceAdalightApa102.h"
+#include "LedDeviceAtmoOrb.h"
 
 #ifdef ENABLE_WS2812BPWM
 	#include "LedDeviceWS2812b.h"
@@ -49,7 +51,7 @@
 
 LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 {
-	std::cout << "Device configuration: " << deviceConfig << std::endl;
+	std::cout << "LEDDEVICE INFO: configuration: " << deviceConfig << std::endl;
 
 	std::string type = deviceConfig.get("type", "UNSPECIFIED").asString();
 	std::transform(type.begin(), type.end(), type.begin(), ::tolower);
@@ -124,8 +126,9 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 	{
 		const std::string output = deviceConfig["output"].asString();
 		const unsigned rate      = deviceConfig["rate"].asInt();
+		const unsigned ledcount  = deviceConfig.get("leds",0).asInt();
 
-		LedDeviceAPA102* deviceAPA102 = new LedDeviceAPA102(output, rate);
+		LedDeviceAPA102* deviceAPA102 = new LedDeviceAPA102(output, rate, ledcount);
 		deviceAPA102->open();
 
 		device = deviceAPA102;
@@ -140,6 +143,16 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 		deviceWs2801->open();
 
 		device = deviceWs2801;
+	}
+	else if (type == "ws2812spi")
+	{
+		const std::string output = deviceConfig["output"].asString();
+		const unsigned rate      = deviceConfig.get("rate",2857143).asInt();
+
+		LedDeviceWs2812SPI* deviceWs2812SPI = new LedDeviceWs2812SPI(output, rate);
+		deviceWs2812SPI->open();
+
+		device = deviceWs2812SPI;
 	}
 #endif
 #ifdef ENABLE_TINKERFORGE
@@ -180,7 +193,7 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 
 		device = deviceLightpack;
 	}
-	else if (type == "multi-lightpack" || type == "multi_lightpack")
+	else if (type == "multi-lightpack")
 	{
 		LedDeviceMultiLightpack* deviceLightpack = new LedDeviceMultiLightpack();
 		deviceLightpack->open();
@@ -206,11 +219,21 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 	{
 		const std::string output     = deviceConfig.get("output",     "").asString();
 		const std::string assignment = deviceConfig.get("assignment", "").asString();
+		const Json::Value gpioMapping = deviceConfig.get("gpiomap", Json::nullValue);
 
-		LedDevicePiBlaster * devicePiBlaster = new LedDevicePiBlaster(output, assignment);
-		devicePiBlaster->open();
+		if (assignment.length() > 0) {
+			std::cout << "ERROR: Sorry, the configuration syntax has changed in this version." << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		if (! gpioMapping.isNull() ) {
+			LedDevicePiBlaster * devicePiBlaster = new LedDevicePiBlaster(output, gpioMapping);
+			devicePiBlaster->open();
 
-		device = devicePiBlaster;
+			device = devicePiBlaster;
+		} else {
+			std::cout << "ERROR: no gpiomap defined." << std::endl;
+			exit(EXIT_FAILURE);
+		}
 	}
 	else if (type == "sedu")
 	{
@@ -246,10 +269,40 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 		}
 		device = new LedDevicePhilipsHue(output, username, switchOffOnBlack, transitiontime, lightIds);
 	}
-	else if (type == "test")
+	else if (type == "atmoorb")
 	{
 		const std::string output = deviceConfig["output"].asString();
-		device = new LedDeviceTest(output);
+		const bool useOrbSmoothing = deviceConfig.get("useOrbSmoothing", false).asBool();
+		const int transitiontime = deviceConfig.get("transitiontime", 1).asInt();
+		const int skipSmoothingDiff = deviceConfig.get("skipSmoothingDiff", 0).asInt();
+		const int port = deviceConfig.get("port", 1).asInt();
+		const int numLeds = deviceConfig.get("numLeds", 1).asInt();
+		const std::string orbId = deviceConfig["orbIds"].asString();
+		std::vector<unsigned int> orbIds;
+
+		// If we find multiple Orb ids separate them and add to list
+		const std::string separator (",");
+		if (orbId.find(separator) != std::string::npos) {
+		  std::stringstream ss(orbId);
+		  std::vector<int> output;
+		  unsigned int i;
+		  while (ss >> i) {
+			  orbIds.push_back(i);
+			  if (ss.peek() == ',' || ss.peek() == ' ')
+				  ss.ignore();
+		  }
+		}
+		else
+		{
+		  orbIds.push_back(atoi(orbId.c_str()));
+		}
+
+		device = new LedDeviceAtmoOrb(output, useOrbSmoothing, transitiontime, skipSmoothingDiff, port, numLeds, orbIds);
+	}
+	else if (type == "file")
+	{
+		const std::string output = deviceConfig.get("output", "/dev/null").asString();
+		device = new LedDeviceFile(output);
 	}
 	else if (type == "fadecandy")
 	{
@@ -302,18 +355,21 @@ LedDevice * LedDeviceFactory::construct(const Json::Value & deviceConfig)
 	else if (type == "ws281x")
 	{
 		const int gpio = deviceConfig.get("gpio", 18).asInt();
-		const int leds = deviceConfig.get("leds", 12).asInt();
+		const int leds = deviceConfig.get("leds", 256).asInt();
 		const uint32_t freq = deviceConfig.get("freq", (Json::UInt)800000ul).asInt();
 		const int dmanum = deviceConfig.get("dmanum", 5).asInt();
+                const int pwmchannel = deviceConfig.get("pwmchannel", 0).asInt();
+		const int invert = deviceConfig.get("invert", 0).asInt();
 
-		LedDeviceWS281x * ledDeviceWS281x = new LedDeviceWS281x(gpio, leds, freq, dmanum);
+		LedDeviceWS281x * ledDeviceWS281x = new LedDeviceWS281x(gpio, leds, freq, dmanum, pwmchannel, invert);
 		device = ledDeviceWS281x;
 	}
 #endif
 	else
 	{
-		std::cout << "Error: Unknown/Unimplemented device " << type << std::endl;
+		std::cout << "LEDDEVICE ERROR: Unknown/Unimplemented device " << type << std::endl;
 		// Unknown / Unimplemented device
+		exit(1);
 	}
 	return device;
 }

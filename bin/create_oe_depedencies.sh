@@ -22,6 +22,7 @@ tar --create --verbose --gzip --absolute-names --show-transformed-names --derefe
 	"$IMX6_ROOTFS/usr/lib/arm-linux-gnueabihf/libXext.so.6" \
 	"$IMX6_ROOTFS/usr/lib/arm-linux-gnueabihf/libXrender.so.1" \
 	"$IMX6_ROOTFS/usr/lib/arm-linux-gnueabihf/libXt.so.6" \
-	"./hyperiond.sh" \
-	"./hyperion-remote.sh"
+	"./openelec/hyperiond.sh" \
+	"./openelec/hyperion-v4l2.sh" \
+	"./openelec/hyperion-remote.sh"
 

@@ -45,7 +45,7 @@ bool MultiColorTransform::verifyTransforms() const
 	{
 		if (_ledTransforms[iLed] == nullptr)
 		{
-			std::cerr << "No transform set for " << iLed << std::endl;
+			std::cerr << "HYPERION (C.transform) ERROR: No transform set for " << iLed << std::endl;
 			allLedsSet = false;
 		}
 	}
@@ -89,6 +89,7 @@ std::vector<ColorRgb> MultiColorTransform::applyTransform(const std::vector<Colo
 		ColorRgb& color = ledColors[i];
 
 		transform->_hsvTransform.transform(color.red, color.green, color.blue);
+		transform->_hslTransform.transform(color.red, color.green, color.blue);
 		color.red   = transform->_rgbRedTransform.transform(color.red);
 		color.green = transform->_rgbGreenTransform.transform(color.green);
 		color.blue  = transform->_rgbBlueTransform.transform(color.blue);
